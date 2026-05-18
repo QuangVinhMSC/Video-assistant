@@ -14,3 +14,4 @@ class AskResponse(BaseModel):
     search_note: Optional[str] = None
     confidence: Optional[str] = None
     used_chunks: Optional[list[str]] = None
+    turn: Optional[int] = None

@@ -1,29 +1,51 @@
+import os
 import uuid
 import shutil
+import threading
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 
+from auth import require_api_key
+from limiter import limiter
 from models.job import JobStatus
-from services.job_store import create_job, get_job, update_job, fail_job
-from services.extractor import extract_audio, extract_frames
-from services.transcriber import transcribe, count_tokens
-from services.summarizer import summarize
-from services.chunker import chunk_transcript
-from services.vector_store import embed_and_store
-from services.topic_extractor import extract_topics
+from services.job_store import create_job, get_job
+from tasks.pipeline import process_video
 
-router = APIRouter()
+try:
+    from redis import Redis
+    from rq import Queue as RQQueue
+    _redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
+    _redis_conn = Redis.from_url(_redis_url, socket_connect_timeout=2)
+    _redis_conn.ping()
+    _task_queue = RQQueue(connection=_redis_conn)
+    _USE_RQ = True
+except Exception:
+    _USE_RQ = False
+    _task_queue = None
+    _redis_conn = None
+
+router = APIRouter(dependencies=[Depends(require_api_key)])
 
 ALLOWED_EXTENSIONS = {".mp4", ".mkv", ".mov", ".webm", ".avi"}
-MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
+MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024 * 1024
 TEMP_DIR = Path("temp_jobs")
 
 
+def _enqueue_or_thread(fn, *args) -> None:
+    if _USE_RQ:
+        try:
+            _task_queue.enqueue(fn, *args, job_timeout=600)
+            return
+        except Exception:
+            pass
+    threading.Thread(target=fn, args=args, daemon=True).start()
+
+
 @router.post("/upload")
+@limiter.limit("5/minute")
 async def upload_video(
-    background_tasks: BackgroundTasks,
+    request: Request,
     file: UploadFile = File(...),
 ):
     ext = Path(file.filename).suffix.lower()
@@ -45,109 +67,16 @@ async def upload_video(
                 raise HTTPException(status_code=413, detail="File exceeds maximum allowed size")
             f.write(chunk)
 
-    create_job(job_id, str(video_path))
-    background_tasks.add_task(process_video, job_id, str(video_path), str(job_dir))
+    create_job(job_id, str(video_path), str(job_dir))
+    _enqueue_or_thread(process_video, job_id, str(video_path), str(job_dir))
 
     return {"job_id": job_id, "status": JobStatus.uploaded}
 
 
 @router.get("/status/{job_id}")
-def get_status(job_id: str):
+@limiter.limit("60/minute")
+def get_status(request: Request, job_id: str):
     job = get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
-
-
-def process_video(job_id: str, video_path: str, job_dir: str):
-    audio_path = str(Path(job_dir) / "audio.wav")
-
-    update_job(job_id, status=JobStatus.extracting_audio, step="extracting_audio", progress=10)
-    try:
-        extract_audio(video_path, audio_path)
-    except RuntimeError as e:
-        error = str(e)
-        if "no audio" in error.lower() or "does not contain" in error.lower():
-            fail_job(job_id, "extracting_audio", "No audio stream detected in the uploaded video")
-        else:
-            fail_job(job_id, "extracting_audio", f"Audio extraction failed: {error}")
-        return
-
-    update_job(job_id, audio_path=audio_path, progress=30)
-    extract_frames(job_id, video_path)
-
-    update_job(job_id, status=JobStatus.transcribing, step="transcribing", progress=35)
-
-    # Step 2 — transcription
-    try:
-        json_path, txt_path = transcribe(audio_path, job_dir)
-    except RuntimeError as e:
-        fail_job(job_id, "transcribing", str(e))
-        return
-
-    transcript_text = Path(txt_path).read_text(encoding="utf-8")
-    token_count = count_tokens(transcript_text)
-
-    needs_summary = token_count > 20_000
-    context_mode = "summary_plus_retrieval" if needs_summary else "full_transcript"
-
-    update_job(
-        job_id,
-        transcript_path=json_path,
-        transcript_txt_path=txt_path,
-        transcript_token_count=token_count,
-        summary=needs_summary,
-        context_mode=context_mode,
-        progress=60,
-    )
-
-    # Step 2 — summarization (only when transcript is too long)
-    if needs_summary:
-        update_job(job_id, status=JobStatus.summarizing, step="summarizing", progress=65)
-        try:
-            summary_path = summarize(transcript_text, job_dir)
-        except RuntimeError as e:
-            fail_job(job_id, "summarizing", str(e))
-            return
-        update_job(job_id, summary_path=summary_path, progress=75)
-
-    update_job(job_id, status=JobStatus.chunking, step="chunking", progress=80)
-
-    # Step 3 — chunking
-    try:
-        chunks = chunk_transcript(json_path)
-    except RuntimeError as e:
-        fail_job(job_id, "chunking", str(e))
-        return
-
-    # Step 3 — embedding
-    try:
-        embed_and_store(job_id, chunks)
-    except RuntimeError as e:
-        fail_job(job_id, "embedding", f"Embedding failed: {e}")
-        return
-
-    update_job(job_id, chunk_count=len(chunks), progress=88)
-    update_job(job_id, status=JobStatus.embedding, step="embedding", progress=90)
-
-    # Step 3 — topic extraction
-    job = get_job(job_id)
-    if job.context_mode == "summary_plus_retrieval" and job.summary_path:
-        context_text = Path(job.summary_path).read_text(encoding="utf-8")
-    else:
-        context_text = Path(txt_path).read_text(encoding="utf-8")
-
-    try:
-        topics = extract_topics(context_text)
-    except RuntimeError as e:
-        fail_job(job_id, "embedding", str(e))
-        return
-
-    update_job(
-        job_id,
-        parent_topic=topics.get("parent_topic"),
-        main_topic=topics.get("main_topic"),
-        topic_confidence=topics.get("confidence"),
-        progress=98,
-    )
-    update_job(job_id, status=JobStatus.ready, step="ready", progress=100)

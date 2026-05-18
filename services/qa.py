@@ -75,7 +75,7 @@ Relevant transcript chunks:
 
 Initial answer:
 {initial_answer}
-
+{conversation_history}
 Supplementary search results:
 {search_results}
 
@@ -141,6 +141,15 @@ def _fmt_time(seconds: float) -> str:
     return f"{m:02d}:{s:02d}"
 
 
+def _format_history(history: list[dict]) -> str:
+    if not history:
+        return ""
+    lines = []
+    for h in history:
+        lines.append(f"Q{h['turn']}: {h['question']}\nA{h['turn']}: {h['answer']}")
+    return "\nConversation history:\n\n" + "\n\n".join(lines) + "\n"
+
+
 def _format_search_results(results: list[dict]) -> str:
     if not results:
         return "None"
@@ -156,7 +165,7 @@ def _build_global_context(job: JobState) -> str:
     return Path(job.transcript_txt_path).read_text(encoding="utf-8")
 
 
-def qa_pipeline(job: JobState, question: str) -> dict:
+def qa_pipeline(job: JobState, question: str, history: list[dict] = None) -> dict:
     """
     Run the full Q&A pipeline for one question.
     Returns the final structured answer dict.
@@ -209,6 +218,7 @@ def qa_pipeline(job: JobState, question: str) -> dict:
         global_context=global_context,
         formatted_chunks=formatted_chunks,
         initial_answer=initial.get("answer", ""),
+        conversation_history=_format_history(history or []),
         search_results=_format_search_results(search_results),
     )
     raw = _llm(final_prompt)

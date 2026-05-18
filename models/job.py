@@ -1,6 +1,7 @@
-from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 from enum import Enum
+from sqlmodel import SQLModel, Field
 
 
 class JobStatus(str, Enum):
@@ -14,23 +15,29 @@ class JobStatus(str, Enum):
     failed = "failed"
 
 
-class JobState(BaseModel):
-    job_id: str
-    status: JobStatus = JobStatus.uploaded
+class JobState(SQLModel, table=True):
+    __tablename__ = "jobs"
+
+    job_id: str = Field(primary_key=True)
+    status: str = "uploaded"
     step: Optional[str] = None
     progress: int = 0
     error: Optional[str] = None
     video_path: Optional[str] = None
     audio_path: Optional[str] = None
-    # Step 2 fields
+    job_dir: Optional[str] = None
+    # Step 2
     transcript_path: Optional[str] = None
     transcript_txt_path: Optional[str] = None
     transcript_token_count: Optional[int] = None
     summary: bool = False
     summary_path: Optional[str] = None
-    context_mode: Optional[str] = None  # "full_transcript" | "summary_plus_retrieval"
-    # Step 3 fields
+    context_mode: Optional[str] = None
+    # Step 3
     chunk_count: Optional[int] = None
     parent_topic: Optional[str] = None
     main_topic: Optional[str] = None
-    topic_confidence: Optional[str] = None  # "high" | "medium" | "low"
+    topic_confidence: Optional[str] = None
+    # Step 5
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)

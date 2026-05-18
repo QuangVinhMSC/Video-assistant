@@ -7,3 +7,8 @@ tiktoken
 openai
 numpy
 duckduckgo-search
+sqlmodel
+rq
+redis
+faiss-cpu
+slowapi
