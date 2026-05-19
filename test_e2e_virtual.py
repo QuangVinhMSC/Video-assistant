@@ -16,6 +16,7 @@ What is mocked (no network / API cost):
 
 import os
 os.environ["DATABASE_URL"] = "sqlite:///data/test_e2e_virtual.db"
+os.environ["TESTING"] = "true"
 
 import contextlib
 import json

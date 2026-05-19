@@ -4,6 +4,7 @@ conversation history, API key auth, turn counter."""
 import os
 # Must be set before any app imports so db.py picks up the test engine.
 os.environ["DATABASE_URL"] = "sqlite:///data/test_step5.db"
+os.environ["TESTING"] = "true"
 
 import json
 import uuid

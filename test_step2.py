@@ -1,3 +1,6 @@
+import os
+os.environ["TESTING"] = "true"
+
 import io
 import json
 import time
@@ -25,14 +28,6 @@ FAKE_TRANSCRIPT_TEXT = "\n".join(s["text"] for s in FAKE_SEGMENTS)
 FAKE_SUMMARY = "# Overview\nThis video covers vocal training basics."
 
 
-def _make_transcript_files(tmp_path: Path) -> tuple[str, str]:
-    json_path = tmp_path / "transcript.json"
-    txt_path = tmp_path / "transcript.txt"
-    json_path.write_text(json.dumps(FAKE_SEGMENTS, indent=2), encoding="utf-8")
-    txt_path.write_text(FAKE_TRANSCRIPT_TEXT, encoding="utf-8")
-    return str(json_path), str(txt_path)
-
-
 def _upload_mocked(tmp_path: Path, transcript_text: str = FAKE_TRANSCRIPT_TEXT,
                    summary_side_effect=None):
     """Upload real video with transcribe + summarize mocked."""
@@ -43,7 +38,14 @@ def _upload_mocked(tmp_path: Path, transcript_text: str = FAKE_TRANSCRIPT_TEXT,
     summary_path = tmp_path / "summary.md"
     summary_path.write_text(FAKE_SUMMARY, encoding="utf-8")
 
-    with patch("routers.video.transcribe") as mt, patch("routers.video.summarize") as ms:
+    with patch("tasks.pipeline.transcribe") as mt, patch("tasks.pipeline.summarize") as ms, \
+         patch("tasks.pipeline.chunk_transcript", return_value=[
+             {"chunk_id": "chunk_000", "start": 0.0, "end": 5.0,
+              "text": "Hello world.", "token_count": 10}
+         ]), \
+         patch("tasks.pipeline.embed_and_store"), \
+         patch("tasks.pipeline.extract_topics",
+               return_value={"parent_topic": "test", "main_topic": "test", "confidence": "high"}):
         mt.return_value = (str(json_path), str(txt_path))
         if summary_side_effect:
             ms.side_effect = summary_side_effect

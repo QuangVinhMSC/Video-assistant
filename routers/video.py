@@ -28,7 +28,7 @@ except Exception:
 router = APIRouter(dependencies=[Depends(require_api_key)])
 
 ALLOWED_EXTENSIONS = {".mp4", ".mkv", ".mov", ".webm", ".avi"}
-MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024 * 1024
+MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024  # 500 MB — aligned with frontend DropZone limit
 TEMP_DIR = Path("temp_jobs")
 
 

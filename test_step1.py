@@ -1,3 +1,6 @@
+import os
+os.environ["TESTING"] = "true"
+
 import io
 import json
 import time
@@ -26,18 +29,18 @@ _FAKE_CHUNKS = [{"chunk_id": "chunk_000", "start": 0.0, "end": 5.0,
 @contextmanager
 def _mock_pipeline(tmp_path=None):
     """Patch all API-dependent steps so real-video tests don't need OPENAI_API_KEY."""
-    import tempfile, os
+    import tempfile
     td = tmp_path or tempfile.mkdtemp()
     json_p = Path(td) / "transcript.json"
     txt_p  = Path(td) / "transcript.txt"
     json_p.write_text(json.dumps(_FAKE_SEGMENTS), encoding="utf-8")
     txt_p.write_text("Hello world.", encoding="utf-8")
 
-    with patch("routers.video.transcribe",    return_value=(str(json_p), str(txt_p))), \
-         patch("routers.video.summarize",     return_value=str(Path(td) / "summary.md")), \
-         patch("routers.video.chunk_transcript", return_value=_FAKE_CHUNKS), \
-         patch("routers.video.embed_and_store"), \
-         patch("routers.video.extract_topics", return_value=_FAKE_TOPICS):
+    with patch("tasks.pipeline.transcribe",      return_value=(str(json_p), str(txt_p))), \
+         patch("tasks.pipeline.summarize",        return_value=str(Path(td) / "summary.md")), \
+         patch("tasks.pipeline.chunk_transcript", return_value=_FAKE_CHUNKS), \
+         patch("tasks.pipeline.embed_and_store"), \
+         patch("tasks.pipeline.extract_topics",   return_value=_FAKE_TOPICS):
         yield
 
 

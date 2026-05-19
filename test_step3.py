@@ -1,3 +1,6 @@
+import os
+os.environ["TESTING"] = "true"
+
 import io
 import json
 import time
@@ -11,8 +14,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from main import app
 from services.chunker import chunk_transcript, CHUNK_SIZE, OVERLAP
-from services.vector_store import retrieve, delete, _index
-from services.job_store import get_job
+from services.vector_store import retrieve, delete, store_embeddings_direct
+from services.job_store import get_job, create_job
 
 client = TestClient(app)
 VIDEO_PATH = Path(__file__).parent / "videofile.mp4"
@@ -48,20 +51,20 @@ def _upload_mocked(tmp_path: Path, extra_patches: dict | None = None):
     ]
 
     patches = {
-        "routers.video.transcribe": MagicMock(return_value=(str(json_path), str(txt_path))),
-        "routers.video.summarize": MagicMock(return_value=str(summary_path)),
-        "routers.video.chunk_transcript": MagicMock(return_value=fake_chunks),
-        "routers.video.embed_and_store": MagicMock(),
-        "routers.video.extract_topics": MagicMock(return_value=FAKE_TOPICS),
+        "tasks.pipeline.transcribe":      MagicMock(return_value=(str(json_path), str(txt_path))),
+        "tasks.pipeline.summarize":       MagicMock(return_value=str(summary_path)),
+        "tasks.pipeline.chunk_transcript": MagicMock(return_value=fake_chunks),
+        "tasks.pipeline.embed_and_store": MagicMock(),
+        "tasks.pipeline.extract_topics":  MagicMock(return_value=FAKE_TOPICS),
     }
     if extra_patches:
         patches.update(extra_patches)
 
-    with patch("routers.video.transcribe", patches["routers.video.transcribe"]), \
-         patch("routers.video.summarize", patches["routers.video.summarize"]), \
-         patch("routers.video.chunk_transcript", patches["routers.video.chunk_transcript"]), \
-         patch("routers.video.embed_and_store", patches["routers.video.embed_and_store"]), \
-         patch("routers.video.extract_topics", patches["routers.video.extract_topics"]):
+    with patch("tasks.pipeline.transcribe",      patches["tasks.pipeline.transcribe"]), \
+         patch("tasks.pipeline.summarize",        patches["tasks.pipeline.summarize"]), \
+         patch("tasks.pipeline.chunk_transcript", patches["tasks.pipeline.chunk_transcript"]), \
+         patch("tasks.pipeline.embed_and_store",  patches["tasks.pipeline.embed_and_store"]), \
+         patch("tasks.pipeline.extract_topics",   patches["tasks.pipeline.extract_topics"]):
 
         r = client.post(
             "/upload",
@@ -115,14 +118,22 @@ def test_chunk_transcript_empty_raises(tmp_path):
 
 
 # ── TC-05: vector_store retrieve returns top-k results with score field ────────
-def test_retrieve_returns_scores():
-    job_id = "test_retrieve_job"
-    _index[job_id] = [
+def test_retrieve_returns_scores(tmp_path):
+    job_id = f"test_retrieve_step3_{os.getpid()}"
+    create_job(job_id, str(tmp_path / "v.mp4"), str(tmp_path))
+
+    chunks = [
         {"chunk_id": "chunk_000", "start": 0.0, "end": 5.0,
-         "text": "hello", "token_count": 10, "embedding": [1.0] + [0.0] * 1535},
+         "text": "hello", "token_count": 10},
         {"chunk_id": "chunk_001", "start": 5.0, "end": 10.0,
-         "text": "world", "token_count": 10, "embedding": [0.0, 1.0] + [0.0] * 1534},
+         "text": "world", "token_count": 10},
     ]
+    embeddings = [
+        [1.0] + [0.0] * 1535,
+        [0.0, 1.0] + [0.0] * 1534,
+    ]
+    store_embeddings_direct(job_id, chunks, embeddings)
+
     query_emb = [1.0] + [0.0] * 1535
     results = retrieve(job_id, query_emb, top_k=2)
     delete(job_id)
@@ -155,14 +166,14 @@ def test_topics_set_on_job(tmp_path):
 def test_chunk_count_set(tmp_path):
     job_id, patches = _upload_mocked(tmp_path)
     job = get_job(job_id)
-    expected = len(patches["routers.video.chunk_transcript"].return_value)
+    expected = len(patches["tasks.pipeline.chunk_transcript"].return_value)
     assert job.chunk_count == expected
 
 
 # ── TC-09: embedding failure marks job as failed ─────────────────────────────
 def test_embedding_failure_fails_job(tmp_path):
     job_id, _ = _upload_mocked(tmp_path, extra_patches={
-        "routers.video.embed_and_store": MagicMock(
+        "tasks.pipeline.embed_and_store": MagicMock(
             side_effect=RuntimeError("API rate limit exceeded")
         )
     })
@@ -174,7 +185,7 @@ def test_embedding_failure_fails_job(tmp_path):
 # ── TC-10: topic extraction failure marks job as failed ──────────────────────
 def test_topic_extraction_failure_fails_job(tmp_path):
     job_id, _ = _upload_mocked(tmp_path, extra_patches={
-        "routers.video.extract_topics": MagicMock(
+        "tasks.pipeline.extract_topics": MagicMock(
             side_effect=RuntimeError("Topic extraction returned unparseable response")
         )
     })
