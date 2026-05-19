@@ -21,8 +21,11 @@ os.environ["TESTING"] = "true"
 import contextlib
 import json
 import subprocess
+import sys
 import time
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from unittest.mock import patch
 
 import pytest

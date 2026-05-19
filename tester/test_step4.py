@@ -11,7 +11,7 @@ from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 import sys
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from main import app
 from services.job_store import get_job, create_job, update_job

@@ -10,7 +10,7 @@ from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 import sys
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from main import app
 from services.chunker import chunk_transcript, CHUNK_SIZE, OVERLAP
@@ -18,7 +18,7 @@ from services.vector_store import retrieve, delete, store_embeddings_direct
 from services.job_store import get_job, create_job
 
 client = TestClient(app)
-VIDEO_PATH = Path(__file__).parent / "videofile.mp4"
+VIDEO_PATH = Path(__file__).parent.parent / "videofile.mp4"
 
 # ── shared fake data ──────────────────────────────────────────────────────────
 

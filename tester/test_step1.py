@@ -11,12 +11,12 @@ from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 import sys
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from main import app
 
 client = TestClient(app)
-VIDEO_PATH = Path(__file__).parent / "videofile.mp4"
+VIDEO_PATH = Path(__file__).parent.parent / "videofile.mp4"
 
 # Mocks for everything downstream of audio extraction (Steps 2-4).
 # Step 1 tests only care about upload, job creation, and ffmpeg.
