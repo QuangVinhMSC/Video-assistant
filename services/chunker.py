@@ -53,3 +53,23 @@ def chunk_transcript(transcript_path: str) -> list[dict]:
         raise RuntimeError("Transcript produced no chunks")
 
     return chunks
+
+
+def attach_frames_to_chunks(chunks: list[dict], index_path: str) -> list[dict]:
+    """
+    Annotate each chunk with frames whose timestamp falls within [start, end].
+    Adds 'frames' key: list of {frame_id, timestamp, ocr_text, caption}.
+    """
+    frame_index = json.loads(Path(index_path).read_text(encoding="utf-8"))
+    for chunk in chunks:
+        chunk["frames"] = [
+            {
+                "frame_id": f["frame_id"],
+                "timestamp": f["timestamp"],
+                "ocr_text": f["ocr_text"],
+                "caption": f["caption"],
+            }
+            for f in frame_index
+            if chunk["start"] <= f["timestamp"] <= chunk["end"]
+        ]
+    return chunks

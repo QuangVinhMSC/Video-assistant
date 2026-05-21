@@ -474,3 +474,11 @@ transcript understanding
 semantic retrieval
 expert reasoning
 optional web augmentation
+
+---
+
+## Plan Change Note
+
+Frame sampling rate changed from **every 5 frames** to **1 frame every 2 seconds** (`fps=0.5` in ffmpeg).
+The references to "every 5 frames" in Section 1 reflect the original plan and are kept for historical record.
+Current implementation in `services/extractor.py` uses the 2-second interval.

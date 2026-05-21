@@ -132,7 +132,14 @@ def _format_chunks(chunks: list[dict]) -> str:
     for c in chunks:
         start = _fmt_time(c.get("start", 0))
         end = _fmt_time(c.get("end", 0))
-        lines.append(f"[{c['chunk_id']} | {start}–{end}]\n{c['text']}")
+        block = [f"[{c['chunk_id']} | {start}–{end}]", c["text"]]
+        for frame in c.get("frames", []):
+            ts = _fmt_time(frame["timestamp"])
+            if frame.get("caption"):
+                block.append(f"  [Visual at {ts}: {frame['caption']}]")
+            if frame.get("ocr_text"):
+                block.append(f"  [On-screen text at {ts}: {frame['ocr_text']}]")
+        lines.append("\n".join(block))
     return "\n\n".join(lines)
 
 

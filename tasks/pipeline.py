@@ -1,11 +1,15 @@
+import logging
 from pathlib import Path
 
 from models.job import JobStatus
 from services.job_store import update_job, fail_job, get_job
 from services.extractor import extract_audio, extract_frames
+from services.frame_ocr import run_ocr
+from services.frame_captioner import caption_frames
 from services.transcriber import transcribe, count_tokens
 from services.summarizer import summarize
-from services.chunker import chunk_transcript
+from services.chunker import chunk_transcript, attach_frames_to_chunks
+from services.frame_reconciler import reconcile_chunks
 from services.vector_store import embed_and_store
 from services.topic_extractor import extract_topics
 
@@ -24,8 +28,29 @@ def process_video(job_id: str, video_path: str, job_dir: str) -> None:
             fail_job(job_id, "extracting_audio", f"Audio extraction failed: {error}")
         return
 
-    update_job(job_id, audio_path=audio_path, progress=30)
-    extract_frames(job_id, video_path)
+    update_job(job_id, audio_path=audio_path, progress=25)
+
+    update_job(job_id, status=JobStatus.extracting_frames, step="extracting_frames", progress=28)
+    try:
+        index_path = extract_frames(job_id, video_path, job_dir)
+        update_job(job_id, frames_index_path=index_path, progress=33)
+    except RuntimeError as e:
+        logging.warning(f"Frame extraction failed for {job_id}: {e}")
+        update_job(job_id, frames_index_path=None, progress=33)
+        index_path = None
+
+    if index_path:
+        update_job(job_id, status=JobStatus.running_ocr, step="running_ocr", progress=34)
+        try:
+            run_ocr(index_path)
+        except Exception as e:
+            logging.warning(f"OCR pass failed for {job_id}: {e}")
+
+        update_job(job_id, status=JobStatus.captioning_frames, step="captioning_frames", progress=36)
+        try:
+            caption_frames(index_path)
+        except Exception as e:
+            logging.warning(f"Caption pass failed for {job_id}: {e}")
 
     update_job(job_id, status=JobStatus.transcribing, step="transcribing", progress=35)
 
@@ -67,6 +92,16 @@ def process_video(job_id: str, video_path: str, job_dir: str) -> None:
     except RuntimeError as e:
         fail_job(job_id, "chunking", str(e))
         return
+
+    if index_path:
+        try:
+            chunks = attach_frames_to_chunks(chunks, index_path)
+        except Exception as e:
+            logging.warning(f"Frame attachment failed for {job_id}: {e}")
+        try:
+            chunks = reconcile_chunks(chunks)
+        except Exception as e:
+            logging.warning(f"Visual reconciliation failed for {job_id}: {e}")
 
     try:
         embed_and_store(job_id, chunks)

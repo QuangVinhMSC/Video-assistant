@@ -7,6 +7,9 @@ import { getStatus } from "../api";
 const PROGRESS = {
   uploaded: 5,
   extracting_audio: 20,
+  extracting_frames: 30,
+  running_ocr: 34,
+  captioning_frames: 36,
   transcribing: 40,
   summarizing: 60,
   chunking: 75,
@@ -23,8 +26,10 @@ export default function ProcessingView({ jobId, onReady }) {
   const [status, setStatus] = useState("uploaded");
   const [error, setError] = useState(null);
   const [elapsed, setElapsed] = useState(0);
+  const [stepTimings, setStepTimings] = useState({});
   const intervalRef = useRef(null);
   const timerRef = useRef(null);
+  const stepStartRef = useRef({ uploaded: Date.now() });
 
   useEffect(() => {
     timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
@@ -32,7 +37,17 @@ export default function ProcessingView({ jobId, onReady }) {
     async function poll() {
       try {
         const data = await getStatus(jobId);
-        setStatus(data.status);
+        setStatus((prev) => {
+          if (data.status !== prev) {
+            const now = Date.now();
+            const start = stepStartRef.current[prev];
+            if (start != null) {
+              setStepTimings((t) => ({ ...t, [prev]: now - start }));
+            }
+            stepStartRef.current[data.status] = now;
+          }
+          return data.status;
+        });
         if (data.status === "ready") {
           stop();
           onReady(data);
@@ -79,7 +94,7 @@ export default function ProcessingView({ jobId, onReady }) {
           <ProgressBar percent={progress} />
         </div>
 
-        <StatusTimeline currentStatus={status} />
+        <StatusTimeline currentStatus={status} stepTimings={stepTimings} />
 
         {error && (
           <div className="space-y-3">

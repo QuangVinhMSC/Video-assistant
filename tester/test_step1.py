@@ -71,8 +71,8 @@ def test_status_after_upload():
     body = r.json()
     assert body["job_id"] == job_id
     assert body["status"] in (
-        "uploaded", "extracting_audio", "transcribing", "chunking",
-        "embedding", "summarizing", "ready", "failed",
+        "uploaded", "extracting_audio", "extracting_frames", "transcribing",
+        "chunking", "embedding", "summarizing", "ready", "failed",
     )
 
 
