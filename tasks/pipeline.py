@@ -17,6 +17,12 @@ from services.topic_extractor import extract_topics
 def process_video(job_id: str, video_path: str, job_dir: str) -> None:
     audio_path = str(Path(job_dir) / "audio.wav")
 
+    job_config = get_job(job_id)
+    model_summarize = job_config.model_summarize
+    model_topic = job_config.model_topic
+    model_frame_caption = job_config.model_frame_caption
+    model_frame_reconcile = job_config.model_frame_reconcile
+
     update_job(job_id, status=JobStatus.extracting_audio, step="extracting_audio", progress=10)
     try:
         extract_audio(video_path, audio_path)
@@ -48,7 +54,7 @@ def process_video(job_id: str, video_path: str, job_dir: str) -> None:
 
         update_job(job_id, status=JobStatus.captioning_frames, step="captioning_frames", progress=36)
         try:
-            caption_frames(index_path)
+            caption_frames(index_path, model=model_frame_caption)
         except Exception as e:
             logging.warning(f"Caption pass failed for {job_id}: {e}")
 
@@ -79,7 +85,7 @@ def process_video(job_id: str, video_path: str, job_dir: str) -> None:
     if needs_summary:
         update_job(job_id, status=JobStatus.summarizing, step="summarizing", progress=65)
         try:
-            summary_path = summarize(transcript_text, job_dir)
+            summary_path = summarize(transcript_text, job_dir, model=model_summarize)
         except RuntimeError as e:
             fail_job(job_id, "summarizing", str(e))
             return
@@ -99,7 +105,7 @@ def process_video(job_id: str, video_path: str, job_dir: str) -> None:
         except Exception as e:
             logging.warning(f"Frame attachment failed for {job_id}: {e}")
         try:
-            chunks = reconcile_chunks(chunks)
+            chunks = reconcile_chunks(chunks, model=model_frame_reconcile)
         except Exception as e:
             logging.warning(f"Visual reconciliation failed for {job_id}: {e}")
 
@@ -119,7 +125,7 @@ def process_video(job_id: str, video_path: str, job_dir: str) -> None:
         context_text = Path(txt_path).read_text(encoding="utf-8")
 
     try:
-        topics = extract_topics(context_text)
+        topics = extract_topics(context_text, model=model_topic)
     except RuntimeError as e:
         fail_job(job_id, "embedding", str(e))
         return

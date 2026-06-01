@@ -4,7 +4,7 @@ import shutil
 import threading
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, File
 
 from auth import require_api_key
 from limiter import limiter
@@ -30,6 +30,7 @@ router = APIRouter(dependencies=[Depends(require_api_key)])
 ALLOWED_EXTENSIONS = {".mp4", ".mkv", ".mov", ".webm", ".avi"}
 MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024  # 500 MB — aligned with frontend DropZone limit
 TEMP_DIR = Path("temp_jobs")
+ALLOWED_MODELS = {"gpt-4o-mini", "gpt-4o", "gpt-5.5"}
 
 
 def _enqueue_or_thread(fn, *args) -> None:
@@ -47,10 +48,23 @@ def _enqueue_or_thread(fn, *args) -> None:
 async def upload_video(
     request: Request,
     file: UploadFile = File(...),
+    model_summarize: str = Form("gpt-5.5"),
+    model_topic: str = Form("gpt-4o-mini"),
+    model_frame_caption: str = Form("gpt-4o"),
+    model_frame_reconcile: str = Form("gpt-4o-mini"),
 ):
     ext = Path(file.filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
+
+    for field, value in [
+        ("model_summarize", model_summarize),
+        ("model_topic", model_topic),
+        ("model_frame_caption", model_frame_caption),
+        ("model_frame_reconcile", model_frame_reconcile),
+    ]:
+        if value not in ALLOWED_MODELS:
+            raise HTTPException(status_code=400, detail=f"Invalid model for {field}: {value}")
 
     job_id = uuid.uuid4().hex
     job_dir = TEMP_DIR / job_id
@@ -67,7 +81,13 @@ async def upload_video(
                 raise HTTPException(status_code=413, detail="File exceeds maximum allowed size")
             f.write(chunk)
 
-    create_job(job_id, str(video_path), str(job_dir))
+    create_job(
+        job_id, str(video_path), str(job_dir),
+        model_summarize=model_summarize,
+        model_topic=model_topic,
+        model_frame_caption=model_frame_caption,
+        model_frame_reconcile=model_frame_reconcile,
+    )
     _enqueue_or_thread(process_video, job_id, str(video_path), str(job_dir))
 
     return {"job_id": job_id, "status": JobStatus.uploaded}

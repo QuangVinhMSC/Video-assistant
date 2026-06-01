@@ -34,7 +34,7 @@ Be thorough. Preserve specific names, numbers, techniques, and timestamps mentio
 """
 
 
-def summarize(transcript_text: str, output_dir: str) -> str:
+def summarize(transcript_text: str, output_dir: str, model: str = "gpt-5.5") -> str:
     """
     Generate summary.md from transcript_text via OpenAI Chat API.
     Returns path to the written file.
@@ -46,7 +46,7 @@ def summarize(transcript_text: str, output_dir: str) -> str:
 
     client = OpenAI(api_key=api_key)
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=model,
         messages=[{"role": "user", "content": _PROMPT_TEMPLATE.format(transcript_text=transcript_text)}],
         temperature=0.3,
     )

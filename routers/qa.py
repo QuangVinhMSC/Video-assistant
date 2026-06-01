@@ -22,7 +22,7 @@ def ask(request: Request, job_id: str, body: AskRequest):
     history = get_conversation_history(job_id, last_n=5)
 
     try:
-        result = qa_pipeline(job, body.question, history=history)
+        result = qa_pipeline(job, body.question, history=history, model=body.qa_model)
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 

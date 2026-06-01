@@ -51,7 +51,7 @@ def _build_frame_evidence(frames: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def reconcile_chunks(chunks: list[dict]) -> list[dict]:
+def reconcile_chunks(chunks: list[dict], model: str = "gpt-4o-mini") -> list[dict]:
     """
     Compare each chunk's transcript text against its frame OCR and captions.
     Adds corrected_text and visual_correction to chunks where a discrepancy is found.
@@ -78,7 +78,7 @@ def reconcile_chunks(chunks: list[dict]) -> list[dict]:
 
         try:
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
                 max_tokens=300,

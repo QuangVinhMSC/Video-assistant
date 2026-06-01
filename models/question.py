@@ -4,6 +4,7 @@ from typing import Optional
 
 class AskRequest(BaseModel):
     question: str
+    qa_model: str = "gpt-4o-mini"
 
 
 class AskResponse(BaseModel):

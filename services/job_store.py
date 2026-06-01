@@ -4,8 +4,8 @@ from db import engine
 from models.job import JobState, JobStatus
 
 
-def create_job(job_id: str, video_path: str, job_dir: str = None) -> JobState:
-    job = JobState(job_id=job_id, video_path=video_path, job_dir=job_dir)
+def create_job(job_id: str, video_path: str, job_dir: str = None, **kwargs) -> JobState:
+    job = JobState(job_id=job_id, video_path=video_path, job_dir=job_dir, **kwargs)
     with Session(engine) as session:
         session.add(job)
         session.commit()

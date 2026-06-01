@@ -107,9 +107,9 @@ def _client() -> OpenAI:
     return OpenAI(api_key=api_key)
 
 
-def _llm(prompt: str, temperature: float = 0.2) -> str:
+def _llm(prompt: str, temperature: float = 0.2, model: str = "gpt-4o-mini") -> str:
     response = _client().chat.completions.create(
-        model="gpt-4o-mini",
+        model=model,
         messages=[{"role": "user", "content": prompt}],
         temperature=temperature,
     )
@@ -172,7 +172,7 @@ def _build_global_context(job: JobState) -> str:
     return Path(job.transcript_txt_path).read_text(encoding="utf-8")
 
 
-def qa_pipeline(job: JobState, question: str, history: list[dict] = None) -> dict:
+def qa_pipeline(job: JobState, question: str, history: list[dict] = None, model: str = "gpt-4o-mini") -> dict:
     """
     Run the full Q&A pipeline for one question.
     Returns the final structured answer dict.
@@ -180,10 +180,10 @@ def qa_pipeline(job: JobState, question: str, history: list[dict] = None) -> dic
     """
     # Step 1 — classify
     classify_prompt = _CLASSIFY_PROMPT.format(question=question, main_topic=job.main_topic)
-    raw = _llm(classify_prompt, temperature=0.0)
+    raw = _llm(classify_prompt, temperature=0.0, model=model)
     classification = _parse_json(
         raw,
-        lambda: _llm(classify_prompt, temperature=0.0),
+        lambda: _llm(classify_prompt, temperature=0.0, model=model),
         "Question classification failed: unparseable response",
     )
     retrieval_query = classification.get("retrieval_query") or question
@@ -202,10 +202,10 @@ def qa_pipeline(job: JobState, question: str, history: list[dict] = None) -> dic
         formatted_chunks=formatted_chunks,
         question=question,
     )
-    raw = _llm(initial_prompt)
+    raw = _llm(initial_prompt, model=model)
     initial = _parse_json(
         raw,
-        lambda: _llm(initial_prompt),
+        lambda: _llm(initial_prompt, model=model),
         "Answer generation failed: unparseable response",
     )
 
@@ -228,10 +228,10 @@ def qa_pipeline(job: JobState, question: str, history: list[dict] = None) -> dic
         conversation_history=_format_history(history or []),
         search_results=_format_search_results(search_results),
     )
-    raw = _llm(final_prompt)
+    raw = _llm(final_prompt, model=model)
     final = _parse_json(
         raw,
-        lambda: _llm(final_prompt),
+        lambda: _llm(final_prompt, model=model),
         "Final answer generation failed: unparseable response",
     )
 

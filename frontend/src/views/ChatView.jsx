@@ -2,8 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { ArrowLeft, Send, AlertCircle, Loader } from "lucide-react";
 import MessageBubble from "../components/MessageBubble";
 import { askQuestion } from "../api";
+import { MODELS } from "../App";
 
-export default function ChatView({ jobId, jobData, onReset }) {
+export default function ChatView({ jobId, jobData, onReset, qaModel, setQaModel }) {
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -30,7 +31,7 @@ export default function ChatView({ jobId, jobData, onReset }) {
     setLoading(true);
 
     try {
-      const data = await askQuestion(jobId, question);
+      const data = await askQuestion(jobId, question, qaModel);
       const content = {
         answer: data.answer ?? "No answer returned.",
         based_on_video: data.based_on_video ?? [],
@@ -110,6 +111,15 @@ export default function ChatView({ jobId, jobData, onReset }) {
             </div>
           )}
           <div className="flex gap-2">
+            <select
+              value={qaModel}
+              onChange={(e) => setQaModel(e.target.value)}
+              className="text-xs border border-gray-300 rounded-xl px-2 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 self-end"
+            >
+              {MODELS.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
             <textarea
               ref={textareaRef}
               value={input}

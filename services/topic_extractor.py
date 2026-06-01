@@ -18,7 +18,7 @@ Return valid JSON only. No markdown. No explanation.
 }}"""
 
 
-def extract_topics(context_text: str) -> dict:
+def extract_topics(context_text: str, model: str = "gpt-4o-mini") -> dict:
     """
     Call OpenAI Chat API (gpt-4o-mini) to extract parent_topic, main_topic, confidence.
     Retries once on JSON parse failure.
@@ -34,7 +34,7 @@ def extract_topics(context_text: str) -> dict:
     for attempt in range(2):
         try:
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
             )

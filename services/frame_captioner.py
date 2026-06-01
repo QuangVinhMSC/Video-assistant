@@ -6,7 +6,7 @@ from pathlib import Path
 import openai
 
 
-def caption_frames(index_path: str, sample_every: int = 5) -> None:
+def caption_frames(index_path: str, sample_every: int = 5, model: str = "gpt-4o") -> None:
     """
     Caption every Nth frame using the OpenAI vision API (gpt-4o).
     Annotates index.json in place. No-ops if OPENAI_API_KEY is not set.
@@ -23,7 +23,7 @@ def caption_frames(index_path: str, sample_every: int = 5) -> None:
         try:
             image_data = base64.b64encode(Path(entry["path"]).read_bytes()).decode()
             response = client.chat.completions.create(
-                model="gpt-4o",
+                model=model,
                 max_tokens=100,
                 messages=[
                     {

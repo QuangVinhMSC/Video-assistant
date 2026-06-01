@@ -42,6 +42,11 @@ class JobState(SQLModel, table=True):
     parent_topic: Optional[str] = None
     main_topic: Optional[str] = None
     topic_confidence: Optional[str] = None
+    # Model config (set at upload time)
+    model_summarize: str = "gpt-5.5"
+    model_topic: str = "gpt-4o-mini"
+    model_frame_caption: str = "gpt-4o"
+    model_frame_reconcile: str = "gpt-4o-mini"
     # Step 5
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
