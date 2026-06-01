@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+data/
+temp_jobs/
+videofile.mp4
+frontend/node_modules/
+frontend/dist/
+tester/
+plan/
+.git/
+.claude/

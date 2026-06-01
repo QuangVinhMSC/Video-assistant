@@ -1,0 +1,43 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  backend:
+    build: .
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379
+      FRONTEND_ORIGIN: http://localhost
+      DATABASE_URL: sqlite:///data/video_assistant.db
+    volumes:
+      - app_data:/app/data
+      - app_jobs:/app/temp_jobs
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+
+  worker:
+    build: .
+    command: rq worker --url redis://redis:6379
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - app_data:/app/data
+      - app_jobs:/app/temp_jobs
+    depends_on:
+      - redis
+
+  frontend:
+    build: frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  app_data:
+  app_jobs:

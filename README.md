@@ -1,8 +1,8 @@
 # Video Assistant
 
-An AI-powered video Q&A application. Upload a video, let the pipeline transcribe and index it, then ask natural-language questions and get timestamped answers grounded in the video content.
+An AI-powered video Q&A application. Upload a video, the pipeline transcribes and indexes it, then you can ask natural-language questions and get timestamped answers grounded in the video content.
 
-## Architecture
+## Stack
 
 | Layer | Tech |
 |---|---|
@@ -10,91 +10,84 @@ An AI-powered video Q&A application. Upload a video, let the pipeline transcribe
 | Job queue | Redis Queue (RQ) with thread fallback |
 | Transcription | OpenAI Whisper |
 | Embeddings | OpenAI `text-embedding-3-small` + FAISS (disk) |
-| Q&A | OpenAI `gpt-4o-mini` (classify → retrieve → answer) |
-| Web search | DuckDuckGo (optional, on low-confidence answers) |
+| Q&A | OpenAI `gpt-4o-mini` |
+| Web search | DuckDuckGo (optional fallback on low-confidence answers) |
 | Frontend | React 18 + Vite + Tailwind CSS v4 |
 
-## Features
+## Quick start (Docker)
 
-- Upload MP4, MKV, MOV, WEBM, or AVI (up to 500 MB)
-- Automatic audio extraction via ffmpeg
-- Token-aware context mode: full transcript (< 20k tokens) or summary + retrieval (≥ 20k tokens)
-- FAISS vector index persisted to disk per job
-- Conversation history stored in SQLite with turn counter
-- API key authentication (optional, via `X-API-Key` header)
-- Rate limiting (5 uploads/min, 30 questions/min per IP)
-
-## Project Structure
-
-```
-video-assistant/
-├── main.py                  # FastAPI app entry point
-├── auth.py                  # Optional API key auth
-├── limiter.py               # slowapi rate limiter
-├── db.py                    # SQLite engine + init
-├── models/                  # SQLModel + Pydantic schemas
-├── routers/                 # HTTP route handlers
-├── services/                # Transcriber, chunker, vector store, QA, history
-├── tasks/                   # Background pipeline (process_video)
-├── frontend/                # React + Vite frontend
-│   └── src/
-│       ├── api.js           # All fetch calls
-│       ├── App.jsx          # Root state machine
-│       ├── views/           # UploadView, ProcessingView, ChatView
-│       └── components/      # MessageBubble, TimestampBadge, ApiKeyGate
-├── tester/                  # pytest test suite (64 tests)
-└── plan/                    # Design docs and planning notes
-```
-
-## Setup
-
-### Prerequisites
-
-- Python 3.11+
-- Node.js 18+
-- ffmpeg on PATH
-- OpenAI API key
-- Redis (optional — falls back to threads if unavailable)
-
-### Backend
+**Prerequisites:** Docker, Docker Compose, an OpenAI API key.
 
 ```bash
+cp .env.example .env      # add your OPENAI_API_KEY
+docker compose up --build
+```
+
+| Service | URL |
+|---|---|
+| Frontend | http://localhost |
+| Backend API | http://localhost:8000 |
+| API docs | http://localhost:8000/docs |
+
+`docker compose down` stops everything. `docker compose down -v` also wipes persisted data.
+
+## Local development (no Docker)
+
+**Prerequisites:** Python 3.11+, Node.js 18+, ffmpeg on PATH, Redis (optional).
+
+```bash
+# backend
 pip install -r requirements.txt
-cp .env.example .env          # fill in OPENAI_API_KEY
+cp .env.example .env      # add your OPENAI_API_KEY
 uvicorn main:app --reload
-```
 
-### Frontend
-
-```bash
+# frontend (separate terminal)
 cd frontend
 npm install
-npm run dev
+npm run dev               # http://localhost:5173
 ```
 
-The frontend runs at `http://localhost:5173` and proxies API calls to `http://localhost:8000`.
+Redis is optional — the app falls back to threads if Redis is unavailable.
 
-## Environment Variables
+## Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
 | `OPENAI_API_KEY` | — | Required |
 | `REDIS_URL` | `redis://localhost:6379` | Optional; threads used if Redis is down |
-| `API_KEY` | _(unset)_ | Optional; if set, all requests require `X-API-Key` header |
+| `API_KEY` | _(unset)_ | Optional; if set, all requests require `X-API-Key: <value>` |
 | `FRONTEND_ORIGIN` | `http://localhost:5173` | CORS allowed origin |
 | `DATABASE_URL` | `sqlite:///data/video_assistant.db` | SQLite path |
 
-## Running Tests
+When running via Docker Compose, `REDIS_URL`, `FRONTEND_ORIGIN`, and `DATABASE_URL` are set automatically — only `OPENAI_API_KEY` (and optionally `API_KEY`) need to be in `.env`.
 
-```bash
-# Backend (64 tests)
-python -m pytest tester/ -v
+## Project structure
 
-# Frontend (10 tests)
-cd frontend && npx vitest run
+```
+video-assistant/
+├── Dockerfile               # backend + worker image (shared)
+├── docker-compose.yml       # redis, backend, worker, frontend
+├── .env.example
+├── main.py                  # FastAPI app entry point
+├── auth.py                  # optional API key auth
+├── limiter.py               # slowapi rate limiter
+├── db.py                    # SQLite engine + init
+├── models/                  # SQLModel + Pydantic schemas
+├── routers/                 # HTTP route handlers
+├── services/                # transcriber, chunker, vector store, QA, history
+├── tasks/                   # background pipeline (process_video)
+├── frontend/
+│   ├── Dockerfile           # multi-stage: Node build → nginx serve
+│   ├── nginx.conf           # proxies /upload, /status/, /ask/ to backend
+│   └── src/
+│       ├── api.js           # all fetch calls
+│       ├── App.jsx          # root state machine
+│       ├── views/           # UploadView, ProcessingView, ChatView
+│       └── components/      # MessageBubble, TimestampBadge, ApiKeyGate
+└── tester/                  # pytest test suite (64 tests)
 ```
 
-## Pipeline Steps
+## Processing pipeline
 
 1. **Upload** — save file, create job record, enqueue background task
 2. **Extract audio** — ffmpeg → `audio.wav`
@@ -105,10 +98,20 @@ cd frontend && npx vitest run
 7. **Extract topics** — gpt-4o-mini classifies parent/main topic
 8. **Ready** — status set to `ready`, frontend unlocks Q&A
 
-## Q&A Flow
+## Q&A flow
 
-Each question goes through three LLM calls:
+Each question makes three LLM calls:
 
 1. **Classify** — determine question type and build a retrieval query
 2. **Initial answer** — answer using retrieved chunks; decide if web search is needed
 3. **Final answer** — synthesize answer with timestamps, video evidence, and optional search results
+
+## Tests
+
+```bash
+# backend (64 tests)
+python -m pytest tester/ -v
+
+# frontend (10 tests)
+cd frontend && npx vitest run
+```
