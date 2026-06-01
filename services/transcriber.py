@@ -6,15 +6,15 @@ import tiktoken
 from openai import OpenAI
 
 
-def transcribe(audio_path: str, output_dir: str) -> tuple[str, str]:
+def transcribe(audio_path: str, output_dir: str, api_key: str = None) -> tuple[str, str]:
     """
     Transcribe audio_path via OpenAI Whisper API.
     Returns (transcript_json_path, transcript_txt_path).
     Raises RuntimeError on failure.
     """
-    api_key = os.environ.get("OPENAI_API_KEY")
+    api_key = api_key or os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY environment variable is not set")
+        raise RuntimeError("No OpenAI API key provided")
 
     client = OpenAI(api_key=api_key)
 

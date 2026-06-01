@@ -15,10 +15,10 @@ _EMBED_MODEL = "text-embedding-3-small"
 _DIMS = 1536
 
 
-def _client() -> OpenAI:
-    api_key = os.environ.get("OPENAI_API_KEY")
+def _client(api_key: str = None) -> OpenAI:
+    api_key = api_key or os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY environment variable is not set")
+        raise RuntimeError("No OpenAI API key provided")
     return OpenAI(api_key=api_key)
 
 
@@ -30,9 +30,9 @@ def _job_dir(job_id: str) -> Path:
     return Path(job.job_dir)
 
 
-def embed_and_store(job_id: str, chunks: list[dict]) -> None:
+def embed_and_store(job_id: str, chunks: list[dict], api_key: str = None) -> None:
     """Batch-embed all chunks and persist index to disk."""
-    client = _client()
+    client = _client(api_key)
     response = client.embeddings.create(
         model=_EMBED_MODEL,
         input=[c["text"] for c in chunks],
@@ -91,9 +91,9 @@ def retrieve(job_id: str, query_embedding: list[float], top_k: int = 5) -> list[
         ]
 
 
-def embed_query(query: str) -> list[float]:
+def embed_query(query: str, api_key: str = None) -> list[float]:
     """Embed a single query string."""
-    client = _client()
+    client = _client(api_key)
     response = client.embeddings.create(model=_EMBED_MODEL, input=[query])
     return response.data[0].embedding
 

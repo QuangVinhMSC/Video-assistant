@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from auth import require_api_key
 from limiter import limiter
@@ -12,7 +12,7 @@ router = APIRouter(dependencies=[Depends(require_api_key)])
 
 @router.post("/ask/{job_id}", response_model=AskResponse)
 @limiter.limit("20/minute")
-def ask(request: Request, job_id: str, body: AskRequest):
+def ask(request: Request, job_id: str, body: AskRequest, x_openai_key: str = Header(default="")):
     job = get_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -21,8 +21,13 @@ def ask(request: Request, job_id: str, body: AskRequest):
 
     history = get_conversation_history(job_id, last_n=5)
 
+    import os
+    openai_key = x_openai_key or os.environ.get("OPENAI_API_KEY") or ""
+    if not openai_key:
+        raise HTTPException(status_code=400, detail="OpenAI API key is required")
+
     try:
-        result = qa_pipeline(job, body.question, history=history, model=body.qa_model)
+        result = qa_pipeline(job, body.question, history=history, model=body.qa_model, api_key=openai_key)
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 

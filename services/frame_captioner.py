@@ -6,15 +6,16 @@ from pathlib import Path
 import openai
 
 
-def caption_frames(index_path: str, sample_every: int = 5, model: str = "gpt-4o") -> None:
+def caption_frames(index_path: str, sample_every: int = 5, model: str = "gpt-4o", api_key: str = None) -> None:
     """
     Caption every Nth frame using the OpenAI vision API (gpt-4o).
-    Annotates index.json in place. No-ops if OPENAI_API_KEY is not set.
+    Annotates index.json in place. No-ops if no API key is available.
     """
-    if not os.environ.get("OPENAI_API_KEY"):
+    api_key = api_key or os.environ.get("OPENAI_API_KEY")
+    if not api_key:
         return
 
-    client = openai.OpenAI()
+    client = openai.OpenAI(api_key=api_key)
     index = json.loads(Path(index_path).read_text(encoding="utf-8"))
 
     for i, entry in enumerate(index):

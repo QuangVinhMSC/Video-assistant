@@ -22,6 +22,7 @@ def process_video(job_id: str, video_path: str, job_dir: str) -> None:
     model_topic = job_config.model_topic
     model_frame_caption = job_config.model_frame_caption
     model_frame_reconcile = job_config.model_frame_reconcile
+    openai_key = job_config.openai_api_key or None
 
     update_job(job_id, status=JobStatus.extracting_audio, step="extracting_audio", progress=10)
     try:
@@ -54,14 +55,14 @@ def process_video(job_id: str, video_path: str, job_dir: str) -> None:
 
         update_job(job_id, status=JobStatus.captioning_frames, step="captioning_frames", progress=36)
         try:
-            caption_frames(index_path, model=model_frame_caption)
+            caption_frames(index_path, model=model_frame_caption, api_key=openai_key)
         except Exception as e:
             logging.warning(f"Caption pass failed for {job_id}: {e}")
 
     update_job(job_id, status=JobStatus.transcribing, step="transcribing", progress=35)
 
     try:
-        json_path, txt_path = transcribe(audio_path, job_dir)
+        json_path, txt_path = transcribe(audio_path, job_dir, api_key=openai_key)
     except RuntimeError as e:
         fail_job(job_id, "transcribing", str(e))
         return
@@ -85,7 +86,7 @@ def process_video(job_id: str, video_path: str, job_dir: str) -> None:
     if needs_summary:
         update_job(job_id, status=JobStatus.summarizing, step="summarizing", progress=65)
         try:
-            summary_path = summarize(transcript_text, job_dir, model=model_summarize)
+            summary_path = summarize(transcript_text, job_dir, model=model_summarize, api_key=openai_key)
         except RuntimeError as e:
             fail_job(job_id, "summarizing", str(e))
             return
@@ -105,12 +106,12 @@ def process_video(job_id: str, video_path: str, job_dir: str) -> None:
         except Exception as e:
             logging.warning(f"Frame attachment failed for {job_id}: {e}")
         try:
-            chunks = reconcile_chunks(chunks, model=model_frame_reconcile)
+            chunks = reconcile_chunks(chunks, model=model_frame_reconcile, api_key=openai_key)
         except Exception as e:
             logging.warning(f"Visual reconciliation failed for {job_id}: {e}")
 
     try:
-        embed_and_store(job_id, chunks)
+        embed_and_store(job_id, chunks, api_key=openai_key)
     except RuntimeError as e:
         fail_job(job_id, "embedding", f"Embedding failed: {e}")
         return
@@ -125,7 +126,7 @@ def process_video(job_id: str, video_path: str, job_dir: str) -> None:
         context_text = Path(txt_path).read_text(encoding="utf-8")
 
     try:
-        topics = extract_topics(context_text, model=model_topic)
+        topics = extract_topics(context_text, model=model_topic, api_key=openai_key)
     except RuntimeError as e:
         fail_job(job_id, "embedding", str(e))
         return

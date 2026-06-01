@@ -3,6 +3,7 @@ const BASE = import.meta.env.VITE_API_URL ?? "";
 function headers() {
   return {
     "X-API-Key": localStorage.getItem("api_key") ?? "",
+    "X-OpenAI-Key": localStorage.getItem("openai_key") ?? "",
   };
 }
 

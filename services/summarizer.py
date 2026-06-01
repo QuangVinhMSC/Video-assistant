@@ -34,15 +34,15 @@ Be thorough. Preserve specific names, numbers, techniques, and timestamps mentio
 """
 
 
-def summarize(transcript_text: str, output_dir: str, model: str = "gpt-5.5") -> str:
+def summarize(transcript_text: str, output_dir: str, model: str = "gpt-5.5", api_key: str = None) -> str:
     """
     Generate summary.md from transcript_text via OpenAI Chat API.
     Returns path to the written file.
     Raises RuntimeError on failure.
     """
-    api_key = os.environ.get("OPENAI_API_KEY")
+    api_key = api_key or os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY environment variable is not set")
+        raise RuntimeError("No OpenAI API key provided")
 
     client = OpenAI(api_key=api_key)
     response = client.chat.completions.create(

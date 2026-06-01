@@ -18,15 +18,15 @@ Return valid JSON only. No markdown. No explanation.
 }}"""
 
 
-def extract_topics(context_text: str, model: str = "gpt-4o-mini") -> dict:
+def extract_topics(context_text: str, model: str = "gpt-4o-mini", api_key: str = None) -> dict:
     """
     Call OpenAI Chat API (gpt-4o-mini) to extract parent_topic, main_topic, confidence.
     Retries once on JSON parse failure.
     Raises RuntimeError on API error or two consecutive parse failures.
     """
-    api_key = os.environ.get("OPENAI_API_KEY")
+    api_key = api_key or os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY environment variable is not set")
+        raise RuntimeError("No OpenAI API key provided")
 
     client = OpenAI(api_key=api_key)
     prompt = _PROMPT.format(context_text=context_text)

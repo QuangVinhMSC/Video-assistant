@@ -42,6 +42,8 @@ class JobState(SQLModel, table=True):
     parent_topic: Optional[str] = None
     main_topic: Optional[str] = None
     topic_confidence: Optional[str] = None
+    # OpenAI key supplied by the user at upload time
+    openai_api_key: Optional[str] = None
     # Model config (set at upload time)
     model_summarize: str = "gpt-5.5"
     model_topic: str = "gpt-4o-mini"

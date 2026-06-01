@@ -11,6 +11,7 @@ _NEW_COLUMNS = {
     "model_topic": "VARCHAR NOT NULL DEFAULT 'gpt-4o-mini'",
     "model_frame_caption": "VARCHAR NOT NULL DEFAULT 'gpt-4o'",
     "model_frame_reconcile": "VARCHAR NOT NULL DEFAULT 'gpt-4o-mini'",
+    "openai_api_key": "VARCHAR",
 }
 
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import ApiKeyGate from "./components/ApiKeyGate";
+import OpenAIKeyGate from "./components/OpenAIKeyGate";
 import UploadView from "./views/UploadView";
 import ProcessingView from "./views/ProcessingView";
 import ChatView from "./views/ChatView";
@@ -8,6 +9,7 @@ export const MODELS = ["gpt-4o-mini", "gpt-4o", "gpt-5.5"];
 
 export default function App() {
   const [apiKey, setApiKey] = useState(() => localStorage.getItem("api_key"));
+  const [openaiKey, setOpenaiKey] = useState(() => localStorage.getItem("openai_key"));
   const [view, setView] = useState("upload");
   const [jobId, setJobId] = useState(null);
   const [jobData, setJobData] = useState(null);
@@ -38,6 +40,7 @@ export default function App() {
   return (
     <>
       {!apiKey && <ApiKeyGate onSave={setApiKey} />}
+      {apiKey && !openaiKey && <OpenAIKeyGate onSave={setOpenaiKey} />}
       {view === "upload" && (
         <UploadView
           onUploaded={handleUploaded}

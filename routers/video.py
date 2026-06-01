@@ -4,7 +4,7 @@ import shutil
 import threading
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, Depends, Form, Header, HTTPException, Request, UploadFile, File
 
 from auth import require_api_key
 from limiter import limiter
@@ -52,10 +52,15 @@ async def upload_video(
     model_topic: str = Form("gpt-4o-mini"),
     model_frame_caption: str = Form("gpt-4o"),
     model_frame_reconcile: str = Form("gpt-4o-mini"),
+    x_openai_key: str = Header(default=""),
 ):
     ext = Path(file.filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
+
+    openai_key = x_openai_key or os.environ.get("OPENAI_API_KEY") or ""
+    if not openai_key:
+        raise HTTPException(status_code=400, detail="OpenAI API key is required")
 
     for field, value in [
         ("model_summarize", model_summarize),
@@ -87,6 +92,7 @@ async def upload_video(
         model_topic=model_topic,
         model_frame_caption=model_frame_caption,
         model_frame_reconcile=model_frame_reconcile,
+        openai_api_key=openai_key,
     )
     _enqueue_or_thread(process_video, job_id, str(video_path), str(job_dir))
 

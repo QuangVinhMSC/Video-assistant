@@ -51,16 +51,17 @@ def _build_frame_evidence(frames: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def reconcile_chunks(chunks: list[dict], model: str = "gpt-4o-mini") -> list[dict]:
+def reconcile_chunks(chunks: list[dict], model: str = "gpt-4o-mini", api_key: str = None) -> list[dict]:
     """
     Compare each chunk's transcript text against its frame OCR and captions.
     Adds corrected_text and visual_correction to chunks where a discrepancy is found.
-    No-ops if OPENAI_API_KEY is not set.
+    No-ops if no API key is available.
     """
-    if not os.environ.get("OPENAI_API_KEY"):
+    api_key = api_key or os.environ.get("OPENAI_API_KEY")
+    if not api_key:
         return chunks
 
-    client = OpenAI()
+    client = OpenAI(api_key=api_key)
 
     for chunk in chunks:
         frames_with_content = [

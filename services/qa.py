@@ -100,15 +100,15 @@ RULES:
 """
 
 
-def _client() -> OpenAI:
-    api_key = os.environ.get("OPENAI_API_KEY")
+def _client(api_key: str = None) -> OpenAI:
+    api_key = api_key or os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY environment variable is not set")
+        raise RuntimeError("No OpenAI API key provided")
     return OpenAI(api_key=api_key)
 
 
-def _llm(prompt: str, temperature: float = 0.2, model: str = "gpt-4o-mini") -> str:
-    response = _client().chat.completions.create(
+def _llm(prompt: str, temperature: float = 0.2, model: str = "gpt-4o-mini", api_key: str = None) -> str:
+    response = _client(api_key).chat.completions.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],
         temperature=temperature,
@@ -172,7 +172,7 @@ def _build_global_context(job: JobState) -> str:
     return Path(job.transcript_txt_path).read_text(encoding="utf-8")
 
 
-def qa_pipeline(job: JobState, question: str, history: list[dict] = None, model: str = "gpt-4o-mini") -> dict:
+def qa_pipeline(job: JobState, question: str, history: list[dict] = None, model: str = "gpt-4o-mini", api_key: str = None) -> dict:
     """
     Run the full Q&A pipeline for one question.
     Returns the final structured answer dict.
@@ -180,17 +180,17 @@ def qa_pipeline(job: JobState, question: str, history: list[dict] = None, model:
     """
     # Step 1 — classify
     classify_prompt = _CLASSIFY_PROMPT.format(question=question, main_topic=job.main_topic)
-    raw = _llm(classify_prompt, temperature=0.0, model=model)
+    raw = _llm(classify_prompt, temperature=0.0, model=model, api_key=api_key)
     classification = _parse_json(
         raw,
-        lambda: _llm(classify_prompt, temperature=0.0, model=model),
+        lambda: _llm(classify_prompt, temperature=0.0, model=model, api_key=api_key),
         "Question classification failed: unparseable response",
     )
     retrieval_query = classification.get("retrieval_query") or question
 
     # Step 2 — build context and retrieve chunks
     global_context = _build_global_context(job)
-    query_embedding = embed_query(retrieval_query)
+    query_embedding = embed_query(retrieval_query, api_key=api_key)
     chunks = retrieve(job.job_id, query_embedding, top_k=5)
     formatted_chunks = _format_chunks(chunks)
 
@@ -202,10 +202,10 @@ def qa_pipeline(job: JobState, question: str, history: list[dict] = None, model:
         formatted_chunks=formatted_chunks,
         question=question,
     )
-    raw = _llm(initial_prompt, model=model)
+    raw = _llm(initial_prompt, model=model, api_key=api_key)
     initial = _parse_json(
         raw,
-        lambda: _llm(initial_prompt, model=model),
+        lambda: _llm(initial_prompt, model=model, api_key=api_key),
         "Answer generation failed: unparseable response",
     )
 
@@ -228,10 +228,10 @@ def qa_pipeline(job: JobState, question: str, history: list[dict] = None, model:
         conversation_history=_format_history(history or []),
         search_results=_format_search_results(search_results),
     )
-    raw = _llm(final_prompt, model=model)
+    raw = _llm(final_prompt, model=model, api_key=api_key)
     final = _parse_json(
         raw,
-        lambda: _llm(final_prompt, model=model),
+        lambda: _llm(final_prompt, model=model, api_key=api_key),
         "Final answer generation failed: unparseable response",
     )
 
