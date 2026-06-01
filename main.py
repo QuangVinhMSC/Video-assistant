@@ -29,7 +29,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[_frontend_origin, "http://localhost:5173"],
     allow_methods=["GET", "POST"],
-    allow_headers=["X-API-Key", "Content-Type"],
+    allow_headers=["X-API-Key", "X-OpenAI-Key", "Content-Type"],
 )
 
 app.include_router(video_router)
